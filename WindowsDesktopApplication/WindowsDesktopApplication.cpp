@@ -24,6 +24,35 @@ static const int textRectWidth = 120;
 static const int textRectHeight = 20;
 
 
+void drawX(HWND hWnd, HDC hdc, RECT rcClient) {
+	COLORREF hPenColor = hWnd == hWnd1 ? hPenColor1 : hPenColor2;
+	hPen = CreatePen(PS_SOLID, 1, hPenColor);
+	SelectObject(hdc, hPen);
+	MoveToEx(hdc, 0, 0, NULL);
+	LineTo(hdc, rcClient.right, rcClient.bottom);
+	MoveToEx(hdc, 0, rcClient.bottom, NULL);
+	LineTo(hdc, rcClient.right, 0);
+}
+
+void drawClock(HWND hWnd, HDC hdc, RECT rcClient) {
+	COLORREF hPenColor = hWnd == hWnd1 ? hPenColor1 : hPenColor2;
+
+
+	HPEN hPenEllipse = CreatePen(PS_SOLID, 1, RGB(0, 0, 255));
+	HBRUSH hBrush = CreateSolidBrush(RGB(0,0,255));
+	SelectObject(hdc, hBrush);
+	SelectObject(hdc, hPenEllipse);
+
+	LONG centerX = rcClient.right / 2;
+	LONG centerY = rcClient.bottom / 2;
+	LONG radiusX = 0.4 * rcClient.right;
+	LONG radiusY = 0.4 * rcClient.bottom;
+
+	Ellipse(hdc, centerX - radiusX, centerY + radiusY, centerX + radiusX, centerY - radiusY);
+
+}
+
+
 // from https://stackoverflow.com/questions/27220/how-to-convert-stdstring-to-lpcwstr-in-c-unicode
 std::wstring s2ws(const std::string& s)
 {
@@ -269,13 +298,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//SelectObject(hdc, oldPen);
 
 			// draw X
-			COLORREF hPenColor = hWnd == hWnd1 ? hPenColor1 : hPenColor2;
-			hPen = CreatePen(PS_SOLID, 1, hPenColor);
-			SelectObject(hdc, hPen);
-			MoveToEx(hdc, 0, 0, NULL);
-			LineTo(hdc, rcClient.right, rcClient.bottom);
-			MoveToEx(hdc, 0, rcClient.bottom, NULL);
-			LineTo(hdc, rcClient.right, 0);
+			drawClock(hWnd, hdc, rcClient);
 
             // TODO: Добавьте сюда любой код прорисовки, использующий HDC...
             EndPaint(hWnd, &ps);
