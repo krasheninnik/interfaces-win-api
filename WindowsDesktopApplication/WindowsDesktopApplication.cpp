@@ -6,10 +6,24 @@
 
 #define MAX_LOADSTRING 100
 
+HWND hWnd1;
+HWND hWnd2;
 
-COLORREF setRedOrGreenPenColor() {
-	static int count = 0;
-	return (count++ % 2 == 0)? RGB(255, 0, 0) : RGB(0, 255, 0);
+COLORREF setRedOrGreenPenColor(HWND hWnd) {
+	static int count1 = 0;
+	static int count2 = 0;
+	static const COLORREF RED = RGB(255, 0, 0);
+	static const COLORREF GREEN = RGB(0, 255, 0);
+
+	// first init
+	if (count1 == 0 && count2 == 0) {
+		count1++;
+		count2++;
+		return RED;
+	}
+
+	// another click
+	return ((hWnd == hWnd1 ? count1 : count2)++ % 2 == 0)? RED : GREEN;
 }
 
 // Глобальные переменные:
@@ -25,7 +39,9 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 // Global users variables:
 HPEN hPen;
-COLORREF hPenColor = setRedOrGreenPenColor();
+COLORREF hPenColor = setRedOrGreenPenColor(NULL);
+
+
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -107,16 +123,24 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Сохранить маркер экземпляра в глобальной переменной
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+   hWnd1 = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
       CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
-   if (!hWnd)
+   hWnd2 = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+	   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+
+   if (!hWnd1 or !hWnd2)
    {
       return FALSE;
    }
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+
+   ShowWindow(hWnd1, nCmdShow);
+   UpdateWindow(hWnd1);
+
+   ShowWindow(hWnd2, nCmdShow);
+   UpdateWindow(hWnd2);
+
 
    return TRUE;
 }
@@ -138,7 +162,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
 		// handle left mouse click 
 	case WM_LBUTTONDOWN:
-		hPenColor = setRedOrGreenPenColor();
+		hPenColor = setRedOrGreenPenColor(hWnd);
 		InvalidateRect(hWnd, NULL, TRUE);
 		break;
 
