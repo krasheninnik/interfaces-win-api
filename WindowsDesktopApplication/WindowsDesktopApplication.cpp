@@ -3,11 +3,55 @@
 
 #include "framework.h"
 #include "WindowsDesktopApplication.h"
+#include <sstream>
+#include <string>
 
 #define MAX_LOADSTRING 100
 
+
+// Global users variables:
 HWND hWnd1;
 HWND hWnd2;
+
+HPEN hPen;
+std::wstring textWithMousePosition = L"Here we go";
+static const int textRectWidth = 120;
+static const int textRectHeight = 20;
+
+
+// from https://stackoverflow.com/questions/27220/how-to-convert-stdstring-to-lpcwstr-in-c-unicode
+std::wstring s2ws(const std::string& s)
+{
+	int len;
+	int slength = (int)s.length() + 1;
+	len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, 0, 0);
+	wchar_t* buf = new wchar_t[len];
+	MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, buf, len);
+	std::wstring r(buf);
+	delete[] buf;
+	return r;
+}
+
+void redrawMousePosition(HWND hWnd, RECT* rect, bool isNeededRedrawInSecondWindow) {
+	InvalidateRect(hWnd, rect, TRUE);
+
+	if (isNeededRedrawInSecondWindow) {
+		//get hWnd of another Windows
+		HWND hWndSecond = hWnd == hWnd1 ? hWnd2 : hWnd1;
+
+		// calculate text Rectangle
+		RECT rcClient;
+		GetClientRect(hWndSecond, &rcClient);
+
+		int textRectX = (rcClient.right - textRectWidth) / 2;
+		int textRectY = 0; 
+
+		RECT textRect = { textRectX, textRectY, textRectX + textRectWidth, textRectY + textRectHeight };
+		
+		// redraw
+		InvalidateRect(hWndSecond, &textRect, TRUE);
+	}
+}
 
 COLORREF setRedOrGreenPenColor(HWND hWnd) {
 	static int count1 = 0;
@@ -26,22 +70,24 @@ COLORREF setRedOrGreenPenColor(HWND hWnd) {
 	return ((hWnd == hWnd1 ? count1 : count2)++ % 2 == 0)? RED : GREEN;
 }
 
+std::wstring getTextWithMousePosition(POINT pt) {
+	std::ostringstream oss;
+	oss << "X: " << pt.x << " Y: " << pt.y;
+	return s2ws(oss.str());
+}
+
 // Глобальные переменные:
 HINSTANCE hInst;                                // текущий экземпляр
 WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
+
+COLORREF hPenColor = setRedOrGreenPenColor(NULL);
 
 // Отправить объявления функций, включенных в этот модуль кода:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-
-// Global users variables:
-HPEN hPen;
-COLORREF hPenColor = setRedOrGreenPenColor(NULL);
-
-
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -80,8 +126,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     return (int) msg.wParam;
 }
-
-
 
 //
 //  ФУНКЦИЯ: MyRegisterClass()
@@ -134,17 +178,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
-
    ShowWindow(hWnd1, nCmdShow);
    UpdateWindow(hWnd1);
 
    ShowWindow(hWnd2, nCmdShow);
    UpdateWindow(hWnd2);
 
-
    return TRUE;
 }
-
 
 //
 //  ФУНКЦИЯ: WndProc(HWND, UINT, WPARAM, LPARAM)
@@ -158,13 +199,32 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	static POINT pt;           // current cursor location 
+	static BOOL isRedrawMousePositionInSecondWindow = true;
+
+	RECT rcClient;
+	GetClientRect(hWnd, &rcClient);
+
+	const int textRectX = (rcClient.right - textRectWidth) / 2;
+	const int textRectY = 0; // rcClient.bottom / 4;
+	
+	RECT textRect = { textRectX, textRectY, textRectX + textRectWidth, textRectY + textRectHeight };
+
     switch (message)
     {
 		// handle left mouse click 
 	case WM_LBUTTONDOWN:
+		GetCursorPos(&pt);
 		hPenColor = setRedOrGreenPenColor(hWnd);
 		InvalidateRect(hWnd, NULL, TRUE);
 		break;
+
+	case WM_MOUSEMOVE: {
+		GetCursorPos(&pt);
+		textWithMousePosition = getTextWithMousePosition(pt);
+		redrawMousePosition(hWnd, &textRect, isRedrawMousePositionInSecondWindow);
+		break;
+	}
 
     case WM_COMMAND:
         {
@@ -172,6 +232,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // Разобрать выбор в меню:
             switch (wmId)
             {
+			case ID_ACCEL_SECOND_SCREEN: 
+				isRedrawMousePositionInSecondWindow = !isRedrawMousePositionInSecondWindow;
+				break;
 
             case IDM_ABOUT:
                 DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -188,9 +251,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
-			RECT rcClient;
-			GetClientRect(hWnd, &rcClient);
 			
+			// draw text
+			SetTextColor(hdc, RGB(255, 0, 0));
+			SetBkMode(hdc, TRANSPARENT);
+			DrawText(hdc, textWithMousePosition.c_str(), -1, &textRect, DT_SINGLELINE | DT_NOCLIP);
+
+			//SelectObject(hdc, oldPen);
+			DeleteObject(hPen);
+
+			// draw X
 			hPen = CreatePen(PS_SOLID, 1, hPenColor);
 			SelectObject(hdc, hPen);
 			MoveToEx(hdc, 0, 0, NULL);
