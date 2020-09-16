@@ -8,12 +8,17 @@
 
 #define MAX_LOADSTRING 100
 
+COLORREF setRedOrGreenPenColor(HWND hWnd);
 
 // Global users variables:
 HWND hWnd1;
 HWND hWnd2;
 
 HPEN hPen;
+COLORREF hPenColor1 = setRedOrGreenPenColor(NULL);
+COLORREF hPenColor2 = hPenColor1;
+
+
 std::wstring textWithMousePosition = L"Here we go";
 static const int textRectWidth = 120;
 static const int textRectHeight = 20;
@@ -81,7 +86,6 @@ HINSTANCE hInst;                                // текущий экземпл
 WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
 
-COLORREF hPenColor = setRedOrGreenPenColor(NULL);
 
 // Отправить объявления функций, включенных в этот модуль кода:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -215,7 +219,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// handle left mouse click 
 	case WM_LBUTTONDOWN:
 		GetCursorPos(&pt);
-		hPenColor = setRedOrGreenPenColor(hWnd);
+		if (hWnd == hWnd1) {
+			hPenColor1 = setRedOrGreenPenColor(hWnd);
+		}
+		else {
+			hPenColor2 = setRedOrGreenPenColor(hWnd);
+		}
 		InvalidateRect(hWnd, NULL, TRUE);
 		break;
 
@@ -258,9 +267,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			DrawText(hdc, textWithMousePosition.c_str(), -1, &textRect, DT_SINGLELINE | DT_NOCLIP);
 
 			//SelectObject(hdc, oldPen);
-			DeleteObject(hPen);
 
 			// draw X
+			COLORREF hPenColor = hWnd == hWnd1 ? hPenColor1 : hPenColor2;
 			hPen = CreatePen(PS_SOLID, 1, hPenColor);
 			SelectObject(hdc, hPen);
 			MoveToEx(hdc, 0, 0, NULL);
