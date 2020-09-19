@@ -1,10 +1,15 @@
 ﻿// WindowsDesktopApplication.cpp : Определяет точку входа для приложения.
 //
-
+#define _CRT_SECURE_NO_WARNINGS
 #include "framework.h"
 #include "WindowsDesktopApplication.h"
 #include <sstream>
 #include <string>
+#include <time.h>
+#include <ctime>
+
+#define TIMER1 1001
+#define TIMER2 1002
 
 #define MAX_LOADSTRING 100
 
@@ -18,11 +23,9 @@ HPEN hPen;
 COLORREF hPenColor1 = setRedOrGreenPenColor(NULL);
 COLORREF hPenColor2 = hPenColor1;
 
-
 std::wstring textWithMousePosition = L"Here we go";
 static const int textRectWidth = 120;
 static const int textRectHeight = 20;
-
 
 void drawX(HWND hWnd, HDC hdc, RECT rcClient) {
 	COLORREF hPenColor = hWnd == hWnd1 ? hPenColor1 : hPenColor2;
@@ -37,21 +40,71 @@ void drawX(HWND hWnd, HDC hdc, RECT rcClient) {
 void drawClock(HWND hWnd, HDC hdc, RECT rcClient) {
 	COLORREF hPenColor = hWnd == hWnd1 ? hPenColor1 : hPenColor2;
 
-
 	HPEN hPenEllipse = CreatePen(PS_SOLID, 1, RGB(0, 0, 255));
 	HBRUSH hBrush = CreateSolidBrush(RGB(0,0,255));
 	SelectObject(hdc, hBrush);
 	SelectObject(hdc, hPenEllipse);
 
-	LONG centerX = rcClient.right / 2;
-	LONG centerY = rcClient.bottom / 2;
+	// clocls positions:
+	POINT center{ rcClient.right / 2, rcClient.bottom / 2 };
 	LONG radiusX = 0.4 * rcClient.right;
 	LONG radiusY = 0.4 * rcClient.bottom;
+	
+	LONG arroswMaxLength = min(radiusX, radiusY);
+	LONG hoursArrowsLength = 0.4 * arroswMaxLength;
+	LONG minArrowsLength = 0.7 * arroswMaxLength;
+	LONG secArrowsLength = 0.9 * arroswMaxLength;
 
-	Ellipse(hdc, centerX - radiusX, centerY + radiusY, centerX + radiusX, centerY - radiusY);
+	// get current time:
+	time_t theTime = std::time(nullptr);
+	struct tm* aTime = localtime(&theTime);
+	int hour = aTime->tm_hour;
+	int min = aTime->tm_min;
+	int sec = aTime->tm_sec;
+	
+	// normalize time
+	if (hour >= 12) hour -= 12;
 
+	// all to seconds
+	hour *= 360;
+	min *= 60;
+
+	// calculate angles
+	const float PI = 3.14159265;
+	float hourAngle = hour * 30 * PI / (180 * 360);
+	float minutesAngle = min * 6 * PI / (180 * 60);
+	float secondAngle = sec * 6 * PI / 180;
+
+	// arrows positions
+	POINT hourArrows{ center.x + hoursArrowsLength * sin(hourAngle),
+	center.y - hoursArrowsLength * cos(hourAngle) };
+
+	POINT minArrows{ center.x + minArrowsLength * sin(minutesAngle),
+	center.y - minArrowsLength * cos(minutesAngle) };
+
+	POINT secArrows{ center.x + secArrowsLength * sin(secondAngle),
+	center.y - secArrowsLength * cos(secondAngle) };
+
+	// draw ellipse
+	Ellipse(hdc, center.x - radiusX, center.y + radiusY,
+		center.x + radiusX, center.y - radiusY);
+
+	// pen for arrows:
+	hPen = CreatePen(PS_SOLID, 1, hPenColor);
+	SelectObject(hdc, hPen);
+
+	// draw hours arrow
+	MoveToEx(hdc, center.x, center.y, NULL);
+	LineTo(hdc, hourArrows.x, hourArrows.y);
+
+	// draw minutes arrow
+	MoveToEx(hdc, center.x, center.y, NULL);
+	LineTo(hdc, minArrows.x, minArrows.y);
+
+	// draw seconds arrow
+	MoveToEx(hdc, center.x, center.y, NULL);
+	LineTo(hdc, secArrows.x, secArrows.y);
 }
-
 
 // from https://stackoverflow.com/questions/27220/how-to-convert-stdstring-to-lpcwstr-in-c-unicode
 std::wstring s2ws(const std::string& s)
@@ -211,6 +264,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
+   const int oneSecond = 1000;
+   SetTimer(hWnd1, TIMER1, oneSecond,  (TIMERPROC)NULL);
+   SetTimer(hWnd2,TIMER1, oneSecond, (TIMERPROC)NULL); 
+
    ShowWindow(hWnd1, nCmdShow);
    UpdateWindow(hWnd1);
 
@@ -219,6 +276,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    return TRUE;
 }
+
 
 //
 //  ФУНКЦИЯ: WndProc(HWND, UINT, WPARAM, LPARAM)
@@ -248,12 +306,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// handle left mouse click 
 	case WM_LBUTTONDOWN:
 		GetCursorPos(&pt);
-		if (hWnd == hWnd1) {
-			hPenColor1 = setRedOrGreenPenColor(hWnd);
-		}
-		else {
-			hPenColor2 = setRedOrGreenPenColor(hWnd);
-		}
+		if (hWnd == hWnd1) hPenColor1 = setRedOrGreenPenColor(hWnd);
+		else hPenColor2 = setRedOrGreenPenColor(hWnd);
 		InvalidateRect(hWnd, NULL, TRUE);
 		break;
 
@@ -263,6 +317,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		redrawMousePosition(hWnd, &textRect, isRedrawMousePositionInSecondWindow);
 		break;
 	}
+
+	// handle timer message
+	case WM_TIMER: 
+		InvalidateRect(hWnd, NULL, TRUE);
+		return 0;
+
 
     case WM_COMMAND:
         {
@@ -295,12 +355,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SetBkMode(hdc, TRANSPARENT);
 			DrawText(hdc, textWithMousePosition.c_str(), -1, &textRect, DT_SINGLELINE | DT_NOCLIP);
 
-			//SelectObject(hdc, oldPen);
-
-			// draw X
+			// draw Clock
 			drawClock(hWnd, hdc, rcClient);
 
-            // TODO: Добавьте сюда любой код прорисовки, использующий HDC...
             EndPaint(hWnd, &ps);
         }
         break;
